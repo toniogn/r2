@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Type, Union
+from typing import Any, List, Type, Union, overload
 import numpy as np
 from numpy import double
 from copy import deepcopy
@@ -15,54 +15,33 @@ class Constants:
 
 class Vector(ABC):
     def __init__(self, *args: List[double]) -> None:
-        self.coordinates = [arg for arg in args]
-
-    @abstractmethod
-    def scalar_product(self, other: "Vector") -> float:
-        pass
-
-    def squared_norm(self) -> float:
-        return self.scalar_product(self)
+        self.coordinates: List[double] = args
 
     def to_array(self) -> np.ndarray:
         return np.float64([[coordinate] for coordinate in self.coordinates])
 
-    @abstractmethod
     def __add__(self, other: "Vector") -> "Vector":
-        return [
-            self_coordinate + other_coordinate
-            for self_coordinate, other_coordinate in zip(
-                self.coordinates, other.coordinates
+        if isinstance(other, type(self)):
+            return type(self)(
+                *[
+                    sum(coordinates)
+                    for coordinates in zip(self.coordinates, other.coordinates)
+                ]
             )
-        ]
+        else:
+            raise TypeError
 
+    @abstractmethod
     def __mul__(
-        self, scalar: Union[int, float, np.float64]
-    ) -> Union[
-        "Vector",
-        "SpaceVector",
-        "VelocityVector",
-        "QuadriVector",
-        "VelocityQuadriVector",
-        "ImpulseQuadriVector",
-    ]:
-        multiplied_self = deepcopy(self)
-        multiplied_self.coordinates = [
-            scalar * coordinate for coordinate in self.coordinates
-        ]
-        return multiplied_self
+        self, something: Union[int, float, double, "Vector"]
+    ) -> Union["Vector", double]:
+        if type(something) in [int, float, double]:
+            return Vector(*[something * coordinate for coordinate in self.coordinates])
 
     def __rmul__(
-        self, scalar: Union[int, float, np.float64]
-    ) -> Union[
-        "Vector",
-        "SpaceVector",
-        "VelocityVector",
-        "QuadriVector",
-        "VelocityQuadriVector",
-        "ImpulseQuadriVector",
-    ]:
-        return self.__mul__(scalar)
+        self, something: Union[int, float, double, "Vector"]
+    ) -> Union["Vector", double]:
+        return self.__mul__(something)
 
     def __str__(self) -> str:
         return self.to_array().__str__()
@@ -70,111 +49,104 @@ class Vector(ABC):
 
 class SpaceVector(Vector):
     def __init__(
-        self, x_coordinate: float, y_coordinate: float, z_coordinate: float
+        self, x_coordinate: double, y_coordinate: double, z_coordinate: double
     ) -> None:
         super().__init__(x_coordinate, y_coordinate, z_coordinate)
 
-    def scalar_product(self, other: Union["SpaceVector", "VelocityVector"]) -> float:
-        return sum(
-            [
-                self_coordinate * other_coordinate
-                for self_coordinate, other_coordinate in zip(
-                    self.coordinates, other.coordinates
-                )
-            ]
-        )
+    def __add__(self, other: Union["SpaceVector", "VelocityVector"]) -> "SpaceVector":
+        return super().__add__(other)
 
-    def angle(self, other: Union["SpaceVector", "VelocityVector"]) -> float:
+    def __mul__(self, something: Union[int, float, double, "SpaceVector", "VelocityVector"]) -> Union["SpaceVector", "VelocityVector", double]:
+        super().__mul__(something)
+        if isinstance(something, SpaceVector):
+            return sum(
+                [
+                    self_coordinate * something_coordinate
+                    for self_coordinate, something_coordinate in zip(
+                        self.coordinates, something.coordinates
+                    )
+                ]
+            )
+        else:
+            raise TypeError
+
+    def angle(self, other: Union["SpaceVector", "VelocityVector"]) -> double:
         return np.arccos(
-            abs(self.scalar_product(other))
-            / (self.squared_norm() ** 0.5 * other.squared_norm() ** 0.5)
+            abs(self * other) / ((self * self) ** 0.5 * (other * other) ** 0.5)
         )
-
-    def __add__(
-        self, other: Union["SpaceVector", "VelocityVector"]
-    ) -> Union["SpaceVector", "VelocityVector"]:
-        summed_coordinates = super().__add__(other)
-        return type(self)(*summed_coordinates)
 
 
 class VelocityVector(SpaceVector):
-    def __init__(
-        self, x_coordinate: float, y_coordinate: float, z_coordinate: float
-    ) -> None:
-        super().__init__(x_coordinate, y_coordinate, z_coordinate)
-        self.beta = self.compute_beta()
-        self.gamma = self.compute_gamma()
-
     def compute_beta(self) -> float:
-        return self.squared_norm() ** 0.5 / Constants.LIGHT_VELOCITY
+        return (self * self) ** 0.5 / Constants.LIGHT_VELOCITY
 
     def compute_gamma(self) -> float:
         return 1 / (1 - self.compute_beta() ** 2) ** 0.5
+
+    def __add__(self, other: Union["SpaceVector", "VelocityVector"]) -> "VelocityVector":
+        return super().__add__(other)
 
 
 class QuadriVector(Vector):
     def __init__(self, ct_coordinate: float, space_vector: SpaceVector) -> None:
         super().__init__(ct_coordinate, *space_vector.coordinates)
 
-    def scalar_product(self, other: "QuadriVector") -> float:
-        return self.coordinates[0] * other.coordinates[0] - SpaceVector(
-            *self.coordinates[1:]
-        ).scalar_product(SpaceVector(*other.coordinates[1:]))
+    def __mul__(
+        self, something: Union[int, float, double, "QuadriVector", "VelocityQuadriVector", "ImpulseQuadriVector"]
+    ) -> Union["QuadriVector", "VelocityQuadriVector", "ImpulseQuadriVector", double]:
+        super().__mul__(something)
+        if isinstance(something, QuadriVector):
+            return (
+                self.coordinates[0] * something.coordinates[0]
+                - self.extract_space_vector() * something.extract_space_vector()
+            )
+        else:
+            raise TypeError
 
     def extract_space_vector(self) -> SpaceVector:
         return SpaceVector(*self.coordinates[1:])
 
-    def __add__(
-        self,
-        other: Union["QuadriVector", "VelocityQuadriVector", "ImpulseQuadriVector"],
-    ) -> Union["QuadriVector", "VelocityQuadriVector", "ImpulseQuadriVector"]:
-        summed_coordinates = super().__add__(other)
-        summed_quadri_vector = deepcopy(self)
-        summed_quadri_vector.coordinates = summed_coordinates
+    def lorentz_transform(self, velocity_vector: VelocityVector) -> "QuadriVector":
+        gamma = velocity_vector.compute_gamma()
+        ct_coordinate = self.coordinates[0]
+        space_vector = self.extract_space_vector()
+        ct_coordinate_transformed = gamma * (
+            ct_coordinate - velocity_vector * space_vector / Constants.LIGHT_VELOCITY
+        )
+        space_vector_transformed = (
+            space_vector
+            + (
+                (gamma - 1)
+                * (space_vector * velocity_vector / (velocity_vector * velocity_vector))
+                - gamma * ct_coordinate / Constants.LIGHT_VELOCITY
+            )
+            * velocity_vector
+        )
+        return QuadriVector(ct_coordinate_transformed, space_vector_transformed)
 
 
 class VelocityQuadriVector(QuadriVector):
-    def __init__(self, velocity_vector: VelocityVector) -> None:
-        super().__init__(
-            velocity_vector.gamma * Constants.LIGHT_VELOCITY,
-            velocity_vector.gamma * velocity_vector,
-        )
+    def __init__(self, vector: Union[VelocityVector, QuadriVector]) -> None:
+        if isinstance(vector, VelocityVector):
+            gamma = vector.compute_gamma()
+            super().__init__(gamma * Constants.LIGHT_VELOCITY, gamma * vector)
+        elif isinstance(vector, QuadriVector):
+            super().__init__(vector.coordinates[0], vector.extract_space_vector())
+
+    def lorentz_transform(self, velocity_vector: VelocityVector) -> "VelocityQuadriVector":
+        return type(self)(super().lorentz_transform(velocity_vector))
 
 
 class ImpulseQuadriVector(VelocityQuadriVector):
-    def __init__(self, mass: float, velocity_vector: VelocityVector) -> None:
-        super().__init__(velocity_vector)
+    def __init__(self, mass: float, vector: Union[VelocityVector, QuadriVector]) -> None:
+        super().__init__(vector)
         self.coordinates = [mass * coordinate for coordinate in self.coordinates]
 
     def compute_energy(self):
         return self.coordinates[0] * Constants.LIGHT_VELOCITY
 
-
-def lorentz_transform(
-    velocity_vector: VelocityVector,
-    quadri_vector: Union["QuadriVector", "VelocityQuadriVector", "ImpulseQuadriVector"],
-) -> Union["QuadriVector", "VelocityQuadriVector", "ImpulseQuadriVector"]:
-    ct_coordinate = quadri_vector.coordinates[0]
-    space_vector = quadri_vector.extract_space_vector()
-    ct_coordinate_transformed = velocity_vector.gamma * (
-        ct_coordinate
-        - velocity_vector.scalar_product(space_vector) / Constants.LIGHT_VELOCITY
-    )
-    space_vector_transformed = (
-        space_vector
-        + (
-            (velocity_vector.gamma - 1)
-            * (
-                space_vector.scalar_product(velocity_vector)
-                / velocity_vector.squared_norm()
-            )
-            - velocity_vector.gamma * ct_coordinate / Constants.LIGHT_VELOCITY
-        )
-        * velocity_vector
-    )
-    quadri_vector_transformed = deepcopy(quadri_vector)
-    quadri_vector_transformed.coordinates = [ct_coordinate_transformed, *space_vector_transformed.coordinates]
-    return quadri_vector_transformed
+    def lorentz_transform(self, velocity_vector: VelocityVector) -> "ImpulseQuadriVector":
+        return type(self)(super().lorentz_transform(velocity_vector))
 
 
 if __name__ == "__main__":
@@ -183,12 +155,12 @@ if __name__ == "__main__":
         1 / 2,
         1 / 4,
     )
-    print(velocity.squared_norm() ** 0.5 / Constants.LIGHT_VELOCITY)
+    print((velocity * velocity) ** 0.5 / Constants.LIGHT_VELOCITY)
     velocity_quad = VelocityQuadriVector(velocity)
     print(velocity_quad)
-    velocity_quad_proper_ref = lorentz_transform(velocity, velocity_quad)
+    velocity_quad_proper_ref = velocity_quad.lorentz_transform(velocity)
     print(velocity_quad_proper_ref)
     impulse_quad = ImpulseQuadriVector(2, velocity)
     print(impulse_quad, impulse_quad.compute_energy())
-    impulse_quad_proper_ref = lorentz_transform(velocity, impulse_quad)
+    impulse_quad_proper_ref = impulse_quad.lorentz_transform(velocity)
     print(impulse_quad_proper_ref, impulse_quad_proper_ref.compute_energy())
