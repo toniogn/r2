@@ -1,3 +1,9 @@
+R2: Relatively useless toolbox
+------------------------------
+
+This package aims to implement some tools and objects of relativity theories in order to observe the relativistic effects on physical cases.
+
+
 ```python
 from r2 import Constants, VelocityVector
 velocity = Constants.LIGHT_VELOCITY * VelocityVector(
@@ -73,20 +79,20 @@ print(f"In this frame it's energy is {impulse_quad_proper_ref.compute_energy()}J
 from r2 import ImpulseQuadriVector
 _lambda = 800e-9
 energy = Constants.LIGHT_VELOCITY * Constants.PLANCK_CONSTANT / _lambda
-velocity = Constants.LIGHT_VELOCITY * VelocityVector(
+photon_velocity = Constants.LIGHT_VELOCITY * VelocityVector(
         1,
         0,
         0,
 )
-impulse_quad = ImpulseQuadriVector.from_space_vector(velocity_vector=velocity, energy=energy)
-print(f"The impulse quadri-vector of a null mass particule is defined from it's energy. For instance a photon with a {_lambda}m wavelength with the following velocity vector:\n{velocity}\n")
+impulse_quad = ImpulseQuadriVector.from_space_vector(velocity_vector=photon_velocity, energy=energy)
+print(f"The impulse quadri-vector of a null mass particule is defined from it's energy. For instance a photon with a {_lambda}m wavelength with the following velocity vector:\n{photon_velocity}\n")
 print(f"Has the following impulse quadri-vector:\n{impulse_quad}\n")
 ```
 
     The impulse quadri-vector of a null mass particule is defined from it's energy. For instance a photon with a 8e-07m wavelength with the following velocity vector:
-    [[299792458]
-     [        0]
-     [        0]]
+    [[2.99792458e+08]
+     [0.00000000e+00]
+     [0.00000000e+00]]
     
     Has the following impulse quadri-vector:
     [[8.28258755e-28]
@@ -94,4 +100,18 @@ print(f"Has the following impulse quadri-vector:\n{impulse_quad}\n")
      [0.00000000e+00]
      [0.00000000e+00]]
     
+    
+
+The proper reference frame is not defined for this quadri-vector because by definition the speed of light is absolute. You can't find a reference frame where the photon is not moving in space. But, you can observe the compatibility of the Lorentz Transform with the light speed absolutism:
+
+
+```python
+impulse_quad.lorentz_transform(velocity)
+print(impulse_quad)
+```
+
+    [[8.28258755e-28]
+     [8.28258755e-28]
+     [0.00000000e+00]
+     [0.00000000e+00]]
     

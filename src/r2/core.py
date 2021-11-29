@@ -20,7 +20,7 @@ class NotDefinedError(ValueError):
 
 
 class Constants:
-    LIGHT_VELOCITY = 299792458
+    LIGHT_VELOCITY = 2.99792458e8
     PLANCK_CONSTANT = 6.62607004e-34
 
 
@@ -153,34 +153,30 @@ class QuadriVector(Vector):
     def lorentz_transform(
         self, velocity_vector: VelocityVector
     ) -> "QuadriVector":
-        try:
-            gamma = velocity_vector.compute_gamma()
-        except NotDefinedError:
-            return self
-        else:
-            ct_coordinate = self.coordinates[0]
-            space_vector = self.to_space_vector()
-            ct_coordinate_transformed = gamma * (
-                ct_coordinate
-                - velocity_vector * space_vector / Constants.LIGHT_VELOCITY
-            )
-            space_vector_transformed = (
-                space_vector
-                + (
-                    (gamma - 1)
-                    * (
-                        space_vector
-                        * velocity_vector
-                        / (velocity_vector * velocity_vector)
-                    )
-                    - gamma * ct_coordinate / Constants.LIGHT_VELOCITY
+        gamma = velocity_vector.compute_gamma()
+        ct_coordinate = self.coordinates[0]
+        space_vector = self.to_space_vector()
+        ct_coordinate_transformed = gamma * (
+            ct_coordinate
+            - velocity_vector * space_vector / Constants.LIGHT_VELOCITY
+        )
+        space_vector_transformed = (
+            space_vector
+            + (
+                (gamma - 1)
+                * (
+                    space_vector
+                    * velocity_vector
+                    / (velocity_vector * velocity_vector)
                 )
-                * velocity_vector
+                - gamma * ct_coordinate / Constants.LIGHT_VELOCITY
             )
-            return type(self)(
-                ct_coordinate_transformed,
-                *space_vector_transformed.coordinates
-            )
+            * velocity_vector
+        )
+        return type(self)(
+            ct_coordinate_transformed,
+            *space_vector_transformed.coordinates
+        )
 
 
 class VelocityQuadriVector(QuadriVector):
