@@ -1,4 +1,4 @@
-R2: Relatively useless toolbox
+R2: Relativity Theories Toolbox
 ------------------------------
 
 This package aims to implement some tools and objects of relativity theories in order to observe the relativistic effects on physical cases.
